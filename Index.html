@@ -1,0 +1,988 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>EditVault — Editing Resources</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg: #0a0a0f;
+      --surface: #11111a;
+      --card: #18182a;
+      --accent: #7c3aff;
+      --accent2: #00e5ff;
+      --text: #e8e8f0;
+      --muted: #6b6b88;
+      --border: rgba(124,58,255,0.25);
+      --glow: 0 0 30px rgba(124,58,255,0.35);
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Outfit', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── NOISE TEXTURE OVERLAY ── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 9999;
+      opacity: 0.5;
+    }
+
+    /* ══════════════════════════
+       PASSWORD SCREEN
+    ══════════════════════════ */
+    #lock-screen {
+      position: fixed;
+      inset: 0;
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      gap: 0;
+    }
+
+    /* animated grid bg */
+    #lock-screen::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(124,58,255,0.07) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(124,58,255,0.07) 1px, transparent 1px);
+      background-size: 60px 60px;
+      animation: gridMove 20s linear infinite;
+    }
+    @keyframes gridMove {
+      from { background-position: 0 0; }
+      to   { background-position: 60px 60px; }
+    }
+
+    .lock-card {
+      position: relative;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 40px 36px 36px;
+      width: min(420px, 92vw);
+      text-align: center;
+      box-shadow: var(--glow), 0 40px 80px rgba(0,0,0,0.6);
+      animation: fadeUp 0.6s ease both;
+    }
+    @keyframes fadeUp {
+      from { opacity:0; transform: translateY(28px); }
+      to   { opacity:1; transform: translateY(0); }
+    }
+
+    .lock-icon {
+      font-size: 3rem;
+      margin-bottom: 10px;
+      display: block;
+      filter: drop-shadow(0 0 12px var(--accent));
+      animation: pulse 2.5s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%,100% { filter: drop-shadow(0 0 8px var(--accent)); }
+      50%      { filter: drop-shadow(0 0 22px var(--accent2)); }
+    }
+
+    .lock-title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 2.6rem;
+      letter-spacing: 4px;
+      background: linear-gradient(135deg, var(--accent2), var(--accent));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 6px;
+    }
+
+    .lock-sub {
+      color: var(--muted);
+      font-size: 0.85rem;
+      font-weight: 300;
+      letter-spacing: 1px;
+      margin-bottom: 30px;
+    }
+
+    .pw-group {
+      position: relative;
+      margin-bottom: 14px;
+    }
+
+    .pw-group input {
+      width: 100%;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 50px 14px 18px;
+      color: var(--text);
+      font-family: 'Outfit', sans-serif;
+      font-size: 1rem;
+      letter-spacing: 2px;
+      outline: none;
+      transition: border-color 0.3s, box-shadow 0.3s;
+    }
+    .pw-group input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(124,58,255,0.2);
+    }
+    .pw-group input::placeholder {
+      letter-spacing: 1px;
+      color: var(--muted);
+    }
+
+    .toggle-eye {
+      position: absolute;
+      right: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 1.1rem;
+      padding: 4px;
+      transition: color 0.2s;
+    }
+    .toggle-eye:hover { color: var(--accent2); }
+
+    .error-msg {
+      color: #ff4d6d;
+      font-size: 0.8rem;
+      min-height: 18px;
+      margin-bottom: 10px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      transition: opacity 0.3s;
+    }
+
+    .enter-btn {
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, var(--accent), #4f00c8);
+      border: none;
+      border-radius: 12px;
+      color: white;
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.3rem;
+      letter-spacing: 3px;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+      box-shadow: 0 6px 24px rgba(124,58,255,0.4);
+    }
+    .enter-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 32px rgba(124,58,255,0.55);
+    }
+    .enter-btn:active { transform: translateY(0); }
+
+    .shake { animation: shake 0.4s ease; }
+    @keyframes shake {
+      0%,100% { transform: translateX(0); }
+      20%      { transform: translateX(-8px); }
+      40%      { transform: translateX(8px); }
+      60%      { transform: translateX(-5px); }
+      80%      { transform: translateX(5px); }
+    }
+
+    /* ── MOBILE FIXES ── */
+    @media (max-width: 480px) {
+      #lock-screen {
+        justify-content: flex-start;
+        padding-top: 60px;
+        overflow-y: auto;
+      }
+      .lock-card {
+        padding: 30px 22px 28px;
+        border-radius: 16px;
+        margin: 0 auto 30px;
+      }
+      .lock-icon { font-size: 2.2rem; margin-bottom: 8px; }
+      .lock-title { font-size: 2rem; letter-spacing: 3px; }
+      .lock-sub { font-size: 0.75rem; letter-spacing: 0.5px; margin-bottom: 22px; }
+      .pw-group input { padding: 13px 46px 13px 14px; font-size: 0.95rem; }
+      .toggle-eye { right: 12px; font-size: 1rem; }
+      .enter-btn { padding: 13px; font-size: 1.1rem; letter-spacing: 2px; }
+      .error-msg { font-size: 0.75rem; }
+    }
+
+    /* ══════════════════════════
+       MAIN SITE
+    ══════════════════════════ */
+    #main-site {
+      display: none;
+      min-height: 100vh;
+    }
+
+    /* HERO */
+    .hero {
+      position: relative;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 40px 20px;
+      overflow: hidden;
+    }
+
+    .hero-orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(80px);
+      pointer-events: none;
+    }
+    .orb-1 {
+      width: 500px; height: 500px;
+      background: radial-gradient(circle, rgba(124,58,255,0.3), transparent 70%);
+      top: -100px; left: -100px;
+    }
+    .orb-2 {
+      width: 400px; height: 400px;
+      background: radial-gradient(circle, rgba(0,229,255,0.2), transparent 70%);
+      bottom: -80px; right: -80px;
+    }
+
+    .badge {
+      display: inline-block;
+      background: rgba(124,58,255,0.15);
+      border: 1px solid rgba(124,58,255,0.4);
+      color: var(--accent2);
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      padding: 6px 16px;
+      border-radius: 100px;
+      margin-bottom: 24px;
+      animation: fadeUp 0.5s 0.1s ease both;
+    }
+
+    .hero h1 {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(4rem, 12vw, 9rem);
+      letter-spacing: 6px;
+      line-height: 0.9;
+      background: linear-gradient(135deg, #fff 30%, var(--accent2) 70%, var(--accent));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      animation: fadeUp 0.5s 0.2s ease both;
+      margin-bottom: 20px;
+    }
+
+    .hero-desc {
+      max-width: 520px;
+      color: var(--muted);
+      font-size: 1rem;
+      line-height: 1.7;
+      font-weight: 300;
+      animation: fadeUp 0.5s 0.3s ease both;
+      margin-bottom: 36px;
+    }
+
+    .hero-stats {
+      display: flex;
+      gap: 40px;
+      justify-content: center;
+      flex-wrap: wrap;
+      animation: fadeUp 0.5s 0.4s ease both;
+      margin-bottom: 44px;
+    }
+    .stat {
+      text-align: center;
+    }
+    .stat-num {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 2.4rem;
+      letter-spacing: 2px;
+      background: linear-gradient(135deg, var(--accent2), var(--accent));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .stat-label {
+      font-size: 0.7rem;
+      letter-spacing: 2px;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+
+    .hero-cta {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      justify-content: center;
+      animation: fadeUp 0.5s 0.5s ease both;
+    }
+
+    .btn-primary {
+      padding: 14px 32px;
+      background: linear-gradient(135deg, var(--accent), #4f00c8);
+      border: none;
+      border-radius: 12px;
+      color: white;
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.1rem;
+      letter-spacing: 3px;
+      cursor: pointer;
+      text-decoration: none;
+      box-shadow: 0 6px 24px rgba(124,58,255,0.4);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .btn-primary:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 12px 36px rgba(124,58,255,0.55);
+    }
+
+    .btn-outline {
+      padding: 14px 32px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      color: var(--text);
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.1rem;
+      letter-spacing: 3px;
+      cursor: pointer;
+      text-decoration: none;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .btn-outline:hover {
+      border-color: var(--accent2);
+      background: rgba(0,229,255,0.06);
+    }
+
+    .scroll-hint {
+      position: absolute;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 0.7rem;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      animation: fadeUp 0.5s 0.8s ease both;
+    }
+    .scroll-arrow {
+      width: 20px; height: 20px;
+      border-right: 2px solid var(--muted);
+      border-bottom: 2px solid var(--muted);
+      transform: rotate(45deg);
+      animation: bounce 1.6s ease-in-out infinite;
+    }
+    @keyframes bounce {
+      0%,100% { transform: rotate(45deg) translateY(0); }
+      50%      { transform: rotate(45deg) translateY(5px); }
+    }
+
+    /* PROVIDES SECTION */
+    .section {
+      padding: 80px 20px;
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+
+    .section-label {
+      font-size: 0.7rem;
+      letter-spacing: 4px;
+      color: var(--accent2);
+      text-transform: uppercase;
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+    .section-title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(2.2rem, 6vw, 3.8rem);
+      letter-spacing: 3px;
+      line-height: 1;
+      margin-bottom: 50px;
+    }
+
+    .provides-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 18px;
+    }
+
+    .provide-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 28px 24px;
+      transition: transform 0.25s, box-shadow 0.25s, border-color 0.25s;
+      position: relative;
+      overflow: hidden;
+    }
+    .provide-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .provide-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 20px 50px rgba(0,0,0,0.4), var(--glow);
+      border-color: rgba(124,58,255,0.5);
+    }
+    .provide-card:hover::before { opacity: 1; }
+
+    .card-icon {
+      font-size: 2rem;
+      margin-bottom: 14px;
+      display: block;
+    }
+    .card-title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.4rem;
+      letter-spacing: 2px;
+      margin-bottom: 8px;
+      color: var(--text);
+    }
+    .card-desc {
+      color: var(--muted);
+      font-size: 0.85rem;
+      line-height: 1.6;
+      font-weight: 300;
+    }
+
+    /* DRIVES SECTION */
+    .divider {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--border), transparent);
+      margin: 0 20px;
+    }
+
+    .drives-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 14px;
+    }
+
+    .drive-link {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 16px 20px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      text-decoration: none;
+      color: var(--text);
+      transition: transform 0.2s, border-color 0.2s, background 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+    .drive-link::after {
+      content: '↗';
+      position: absolute;
+      right: 18px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--muted);
+      font-size: 1rem;
+      transition: color 0.2s, right 0.2s;
+    }
+    .drive-link:hover {
+      transform: translateX(4px);
+      border-color: var(--accent2);
+      background: rgba(0,229,255,0.04);
+    }
+    .drive-link:hover::after {
+      color: var(--accent2);
+      right: 14px;
+    }
+
+    .drive-icon {
+      font-size: 1.4rem;
+      flex-shrink: 0;
+      width: 38px; height: 38px;
+      background: rgba(124,58,255,0.12);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    .drive-info { flex: 1; }
+    .drive-name {
+      font-weight: 600;
+      font-size: 0.9rem;
+      margin-bottom: 2px;
+    }
+    .drive-tag {
+      font-size: 0.72rem;
+      color: var(--muted);
+      letter-spacing: 0.5px;
+    }
+
+    /* MULTI-PART DRIVE CARD */
+    .drive-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px 20px;
+      transition: border-color 0.25s, box-shadow 0.25s;
+    }
+    .drive-card:hover {
+      border-color: rgba(124,58,255,0.5);
+      box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+    }
+    .drive-card-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 12px;
+    }
+    .drive-card-header .drive-info { flex: 1; }
+    .part-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .part-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 6px 14px;
+      background: rgba(124,58,255,0.12);
+      border: 1px solid rgba(124,58,255,0.3);
+      border-radius: 8px;
+      color: var(--accent2);
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.78rem;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-decoration: none;
+      transition: background 0.2s, border-color 0.2s, transform 0.15s;
+    }
+    .part-btn:hover {
+      background: rgba(124,58,255,0.25);
+      border-color: var(--accent2);
+      transform: translateY(-2px);
+    }
+    .part-btn::after { content: '↗'; font-size: 0.7rem; opacity: 0.7; }
+
+    /* FOOTER */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 30px 20px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.8rem;
+      letter-spacing: 1px;
+    }
+    footer a {
+      color: var(--accent2);
+      text-decoration: none;
+    }
+    footer a:hover { text-decoration: underline; }
+
+    /* NAV */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      padding: 16px 30px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(10,10,15,0.75);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid rgba(124,58,255,0.1);
+    }
+    .nav-logo {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.5rem;
+      letter-spacing: 4px;
+      background: linear-gradient(135deg, var(--accent2), var(--accent));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .nav-links {
+      display: flex;
+      gap: 26px;
+      list-style: none;
+    }
+    .nav-links a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.8rem;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover { color: var(--accent2); }
+
+    /* SUCCESS animation when unlocking */
+    @keyframes siteReveal {
+      from { opacity: 0; transform: scale(0.97); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+    .site-reveal {
+      animation: siteReveal 0.6s ease both;
+    }
+
+    /* ── HOME PAGE MOBILE ── */
+    @media (max-width: 480px) {
+      nav { padding: 12px 16px; }
+      .nav-logo { font-size: 1.2rem; letter-spacing: 2px; }
+      .nav-links { gap: 14px; }
+      .nav-links a { font-size: 0.68rem; letter-spacing: 1px; }
+
+      .hero { padding: 100px 16px 60px; min-height: auto; }
+      .badge { font-size: 0.6rem; letter-spacing: 2px; padding: 5px 12px; }
+
+      .hero-stats { gap: 24px; }
+      .stat-num { font-size: 1.8rem; }
+      .stat-label { font-size: 0.62rem; }
+
+      .hero-cta { flex-direction: column; align-items: stretch; gap: 10px; }
+      .btn-primary, .btn-outline {
+        padding: 13px 20px;
+        font-size: 1rem;
+        letter-spacing: 2px;
+        text-align: center;
+      }
+
+      .section { padding: 50px 16px; }
+      .section-title { margin-bottom: 30px; }
+
+      .provides-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
+      .provide-card { padding: 18px 14px; }
+      .card-icon { font-size: 1.5rem; margin-bottom: 8px; }
+      .card-title { font-size: 1.1rem; }
+      .card-desc { font-size: 0.75rem; }
+
+      .drives-grid { grid-template-columns: 1fr; gap: 10px; }
+      .drive-link, .drive-card { border-radius: 12px; }
+      .drive-name { font-size: 0.85rem; }
+
+      .scroll-hint { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ════════════════════ LOCK SCREEN ════════════════════ -->
+<div id="lock-screen">
+  <div class="lock-card" id="lock-card">
+    <span class="lock-icon">🔐</span>
+    <div class="lock-title">EditVault</div>
+    <div class="lock-sub">RESTRICTED ACCESS — ENTER PASSWORD</div>
+    <div class="pw-group">
+      <input type="password" id="pw-input" placeholder="Enter password…" autocomplete="off"/>
+      <button class="toggle-eye" onclick="togglePw()" id="eye-btn">👁</button>
+    </div>
+    <div class="error-msg" id="error-msg"></div>
+    <button class="enter-btn" onclick="checkPassword()">UNLOCK</button>
+  </div>
+</div>
+
+<!-- ════════════════════ MAIN SITE ════════════════════ -->
+<div id="main-site">
+  <nav>
+    <span class="nav-logo">EditVault</span>
+    <ul class="nav-links">
+      <li><a href="#intro">About</a></li>
+      <li><a href="#provides">Provides</a></li>
+      <li><a href="#drives">Drives</a></li>
+    </ul>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-orb orb-1"></div>
+    <div class="hero-orb orb-2"></div>
+    <span class="badge">✦ FREE EDITING RESOURCES</span>
+    <h1>EDIT<br>VAULT</h1>
+    <p class="hero-desc">
+      Your ultimate collection of free editing assets — Google Drives packed with packs, fonts, SFX, backgrounds, and more. Everything a creator needs, in one place.
+    </p>
+    <div class="hero-stats">
+      <div class="stat"><div class="stat-num">10+</div><div class="stat-label">Drive Folders</div></div>
+      <div class="stat"><div class="stat-num">100%</div><div class="stat-label">Free Access</div></div>
+      <div class="stat"><div class="stat-num">∞</div><div class="stat-label">Resources</div></div>
+    </div>
+    <div class="hero-cta">
+      <a href="#drives" class="btn-primary">BROWSE DRIVES</a>
+      <a href="https://discord.gg/B4eeX78P9q" target="_blank" class="btn-outline">JOIN DISCORD</a>
+    </div>
+    <div class="scroll-hint"><span class="scroll-arrow"></span>Scroll</div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- WHAT WE PROVIDE -->
+  <section class="section" id="provides">
+    <div class="section-label">✦ What We Offer</div>
+    <div class="section-title">WHAT WE<br>PROVIDE</div>
+    <div class="provides-grid">
+      <div class="provide-card">
+        <span class="card-icon">📁</span>
+        <div class="card-title">Google Drives</div>
+        <div class="card-desc">Curated collection of Google Drive folders packed with premium editing assets, all free.</div>
+      </div>
+      <div class="provide-card">
+        <span class="card-icon">🎨</span>
+        <div class="card-title">Editing Packs</div>
+        <div class="card-desc">Packs for Free Fire, Minecraft, thumbnails, animated icons, transitions & more.</div>
+      </div>
+      <div class="provide-card">
+        <span class="card-icon">🔤</span>
+        <div class="card-title">Premium Fonts</div>
+        <div class="card-desc">A rich library of premium fonts you can download and use in your projects instantly.</div>
+      </div>
+      <div class="provide-card">
+        <span class="card-icon">🖼️</span>
+        <div class="card-title">PNGs & Assets</div>
+        <div class="card-desc">High-quality PNGs, backgrounds, overlays, and visual assets for any editing style.</div>
+      </div>
+      <div class="provide-card">
+        <span class="card-icon">🔊</span>
+        <div class="card-title">SFX & Sound Packs</div>
+        <div class="card-desc">Various SFX and sound packs to give your edits that professional audio punch.</div>
+      </div>
+      <div class="provide-card">
+        <span class="card-icon">📦</span>
+        <div class="card-title">Project Files</div>
+        <div class="card-desc">Ready-made project files and templates you can open, remix, and make your own.</div>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- DRIVES -->
+  <section class="section" id="drives">
+    <div class="section-label">✦ Browse Resources</div>
+    <div class="section-title">GOOGLE<br>DRIVES</div>
+    <div class="drives-grid">
+
+      <!-- MULTI-PART EXAMPLE: Free Fire has multiple drives → use drive-card -->
+      <div class="drive-card">
+        <div class="drive-card-header">
+          <div class="drive-icon">🔥</div>
+          <div class="drive-info">
+            <div class="drive-name">Free Fire Editing Packs</div>
+            <div class="drive-tag">Game · Assets · Packs</div>
+          </div>
+        </div>
+        <div class="part-buttons">
+          <a class="part-btn" href="https://drive.google.com/drive/mobile/folders/1-RriUFH0LySGX3V7nVWxGYf2rj3wtagh?usp=sharing" target="_blank">Part 1</a>
+          <a class="part-btn" href="#" target="_blank">Part 2</a>
+          <a class="part-btn" href="#" target="_blank">Part 3</a>
+        </div>
+      </div>
+
+      <a class="drive-link" href="https://drive.google.com/drive/mobile/folders/1TD-4xjsqDOsGYE1Pr6NhV5891UdFXBDt?usp=sharing" target="_blank">
+        <div class="drive-icon">⛏️</div>
+        <div class="drive-info">
+          <div class="drive-name">Minecraft Editing Packs</div>
+          <div class="drive-tag">Game · Assets · Packs</div>
+        </div>
+      </a>
+
+      <a class="drive-link" href="https://drive.google.com/drive/mobile/folders/1QOsyJlqdnWtRgFf334taurPPXRp9Iyp0?usp=sharing" target="_blank">
+        <div class="drive-icon">🔤</div>
+        <div class="drive-info">
+          <div class="drive-name">Premium Fonts</div>
+          <div class="drive-tag">Typography · Design</div>
+        </div>
+      </a>
+
+      <a class="drive-link" href="https://drive.google.com/drive/mobile/folders/10BidIUjhdjXKV5_zBXY2_OaTo_cBBaGo?usp=sharing" target="_blank">
+        <div class="drive-icon">🖼️</div>
+        <div class="drive-info">
+          <div class="drive-name">Premium PNGs</div>
+          <div class="drive-tag">Graphics · Overlays</div>
+        </div>
+      </a>
+
+      <a class="drive-link" href="https://drive.google.com/drive/mobile/folders/1HXNQu1b3QewRrgX3_APL9I4PxMgn3rOp?usp=sharing" target="_blank">
+        <div class="drive-icon">🔊</div>
+        <div class="drive-info">
+          <div class="drive-name">Various SFX</div>
+          <div class="drive-tag">Audio · Effects</div>
+        </div>
+      </a>
+
+      <a class="drive-link" href="https://drive.google.com/drive/mobile/folders/13i-1am9utqk8qWHIjw_H39-G1PPAbxBw?usp=sharing" target="_blank">
+        <div class="drive-icon">🎵</div>
+        <div class="drive-info">
+          <div class="drive-name">Sound Packs</div>
+          <div class="drive-tag">Audio · Music</div>
+        </div>
+      </a>
+
+      <a class="drive-link" href="https://drive.google.com/drive/mobile/folders/1JyylVhvhCM3ASfBn3AYM6js7zgKbIV9Y?usp=sharing" target="_blank">
+        <div class="drive-icon">🌆</div>
+        <div class="drive-info">
+          <div class="drive-name">1v1 Backgrounds</div>
+          <div class="drive-tag">Backgrounds · Visuals</div>
+        </div>
+      </a>
+
+      <a class="drive-link" href="https://drive.google.com/drive/mobile/folders/1xmn8FA0zC1ND8WcNxreLqDgOCdfPswYP?usp=sharing" target="_blank">
+        <div class="drive-icon">🖱️</div>
+        <div class="drive-info">
+          <div class="drive-name">Thumbnail Packs</div>
+          <div class="drive-tag">YouTube · Design</div>
+        </div>
+      </a>
+
+      <a class="drive-link" href="https://drive.google.com/drive/mobile/folders/1nlz0Q2Q775_zyufGrzii_gjWCDWX-SOn?usp=sharing" target="_blank">
+        <div class="drive-icon">✨</div>
+        <div class="drive-info">
+          <div class="drive-name">Animated Icons</div>
+          <div class="drive-tag">Motion · Graphics</div>
+        </div>
+      </a>
+
+      <a class="drive-link" href="https://drive.google.com/drive/mobile/folders/1Jb5ZkNIAPMq9RJzN55f3yXR0JAgG1L_f?usp=sharing" target="_blank">
+        <div class="drive-icon">🎬</div>
+        <div class="drive-info">
+          <div class="drive-name">Transition Packs</div>
+          <div class="drive-tag">Motion · Effects</div>
+        </div>
+      </a>
+
+      <a class="drive-link" href="https://drive.google.com/drive/mobile/folders/1jOVLYh_96HztQTqlzubtZsO9Yk97XyvF?usp=sharing" target="_blank">
+        <div class="drive-icon">🎑</div>
+        <div class="drive-info">
+          <div class="drive-name">Extra Backgrounds</div>
+          <div class="drive-tag">Backgrounds · Wallpapers</div>
+        </div>
+      </a>
+
+      <a class="drive-link" href="https://drive.google.com/drive/mobile/folders/1_9byibepFI3IBtiTIWLJlbnrZ3B2pPEI?usp=sharing" target="_blank">
+        <div class="drive-icon">📂</div>
+        <div class="drive-info">
+          <div class="drive-name">Project Files</div>
+          <div class="drive-tag">Templates · Projects</div>
+        </div>
+      </a>
+
+      <a class="drive-link" href="https://drive.google.com/drive/mobile/folders/1HrOmwU0TM6aBldjMLp6I6e3tKcgyltYr?usp=sharing" target="_blank">
+        <div class="drive-icon">📦</div>
+        <div class="drive-info">
+          <div class="drive-name">Assets</div>
+          <div class="drive-tag">Mixed · Resources</div>
+        </div>
+      </a>
+
+      <a class="drive-link" href="https://www.figma.com/board/Nl06iRxf4zUObo3i9RJn8j/MY-PROJECT-FILES?node-id=0-1&t=15xdwD4F2FQuoc6" target="_blank">
+        <div class="drive-icon">🎨</div>
+        <div class="drive-info">
+          <div class="drive-name">More Projects (Figma)</div>
+          <div class="drive-tag">Figma · Design Files</div>
+        </div>
+      </a>
+
+      <a class="drive-link" href="https://gfxfather.com/welcome-to-gfxfather/" target="_blank">
+        <div class="drive-icon">🌐</div>
+        <div class="drive-info">
+          <div class="drive-name">GFXFather Website</div>
+          <div class="drive-tag">External · All-Rounder</div>
+        </div>
+      </a>
+
+    </div>
+  </section>
+
+  <footer>
+    <p>Made with ❤️ · <a href="https://discord.gg/B4eeX78P9q" target="_blank">Join our Discord</a> · Hosted on Neocities</p>
+  </footer>
+</div>
+
+<script>
+  // ── Password ──
+  const CORRECT_PW = "977";
+  let attempts = 0;
+
+  function checkPassword() {
+    const input = document.getElementById('pw-input');
+    const errEl = document.getElementById('error-msg');
+    const card  = document.getElementById('lock-card');
+    const val   = input.value.trim();
+
+    if (val === CORRECT_PW) {
+      errEl.textContent = '';
+      card.style.transition = 'opacity 0.5s, transform 0.5s';
+      card.style.opacity = '0';
+      card.style.transform = 'scale(0.95) translateY(-20px)';
+      setTimeout(() => {
+        document.getElementById('lock-screen').style.display = 'none';
+        const site = document.getElementById('main-site');
+        site.style.display = 'block';
+        site.classList.add('site-reveal');
+      }, 500);
+    } else {
+      attempts++;
+      errEl.textContent = 'Incorrect Password, Try again!';
+      input.value = '';
+      card.classList.remove('shake');
+      void card.offsetWidth; // reflow to restart animation
+      card.classList.add('shake');
+      if (attempts >= 5) {
+        errEl.textContent = 'Too many attempts. Please wait…';
+        document.querySelector('.enter-btn').disabled = true;
+        setTimeout(() => {
+          document.querySelector('.enter-btn').disabled = false;
+          errEl.textContent = '';
+          attempts = 0;
+        }, 8000);
+      }
+    }
+  }
+
+  // Allow Enter key
+  document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('pw-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') checkPassword();
+    });
+  });
+
+  // Toggle show/hide password
+  function togglePw() {
+    const inp = document.getElementById('pw-input');
+    const btn = document.getElementById('eye-btn');
+    if (inp.type === 'password') {
+      inp.type = 'text';
+      btn.textContent = '🙈';
+    } else {
+      inp.type = 'password';
+      btn.textContent = '👁';
+    }
+  }
+
+  // Smooth scroll for nav links
+  document.querySelectorAll('a[href^="#"]').forEach(a => {
+    a.addEventListener('click', e => {
+      const target = document.querySelector(a.getAttribute('href'));
+      if (target) { e.preventDefault(); target.scrollIntoView({ behavior: 'smooth' }); }
+    });
+  });
+</script>
+</body>
+</html>
